@@ -1,0 +1,70 @@
+---
+- hosts: cs_servers
+
+  remote_user: root
+
+  vars:
+    letsencrypt_dir: /etc/letsencrypt
+    letsencrypt_keys_dir: /etc/letsencrypt/keys
+    letsencrypt_certs_dir: /etc/letsencrypt/certs
+    words: "{{ inventory_hostname.split('.') }}"
+    domain_name: "{{ words[0]+'.ext.'+'.'.join(words[1:]) }}"
+
+  tasks:
+
+  - name: use private key
+    file:
+      dest: /etc/xroad/ssl/nginx.key
+      src: "{{ letsencrypt_keys_dir }}/{{ domain_name }}.key"
+      state: link
+      force: yes
+
+  - name: use certificate
+    file:
+      dest: /etc/xroad/ssl/nginx.crt
+      src: "{{ letsencrypt_certs_dir }}/{{ domain_name }}.crt"
+      state: link
+      force: yes
+
+- hosts: ss_servers
+
+  remote_user: root
+
+  vars:
+    letsencrypt_keys_dir: /etc/letsencrypt/keys
+    letsencrypt_certs_dir: /etc/letsencrypt/certs
+    words: "{{ inventory_hostname.split('.') }}"
+    domain_name: "{{ words[0]+'.ext.'+'.'.join(words[1:]) }}"
+
+  tasks:
+
+  - name: use generated key
+    file:
+      dest: /etc/xroad/ssl/proxy-ui-api.key
+      src: "{{ letsencrypt_keys_dir }}/{{ domain_name }}.key"
+      state: link
+      force: yes
+
+  - name: use certificate
+    file:
+      dest: /etc/xroad/ssl/proxy-ui-api.crt
+      src: "{{ letsencrypt_certs_dir }}/{{ domain_name }}.crt"
+      state: link
+      force: yes
+
+  - name: make p12
+    openssl_pkcs12:
+      action: export
+      certificate_path: /etc/xroad/ssl/proxy-ui-api.crt
+      privatekey_path: /etc/xroad/ssl/proxy-ui-api.key
+      path: /etc/xroad/ssl/proxy-ui-api.p12
+      friendly_name: proxy-ui-api
+      passphrase: proxy-ui-api
+      owner: xroad
+      group: xroad
+      mode: '0660'
+
+  - name: restart ui
+    service:
+      name: xroad-proxy-ui-api
+      state: restarted

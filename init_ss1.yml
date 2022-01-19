@@ -1,0 +1,352 @@
+---
+- name: Initialize ss1
+
+  hosts: ss1.egovstack.net
+
+  vars_files: vars_with_secret.yml
+  vars:
+    user: xrd
+    apikey: "{{ apikey_json['key'] }}"
+    softToken0_fromlist: "{{ token_list.json | selectattr('name', 'equalto', 'softToken-0') | first }}"
+    softToken0: "{{ token_info.json }}"
+    key_name:
+      signing: signingKey
+      authentication: authKey
+    key_type: signing
+    key_list: "{{ softToken0['keys'] | selectattr('name', 'equalto', key_name[key_type]) }}"
+    key_detail: "{{ key_list | default([{}], true) | first }}"
+
+  tasks:
+
+  - name: Create API key
+    uri:
+      method: POST
+      url: https://localhost:4000/api/v1/api-keys
+      user: "{{ user }}"
+      password: "{{ password }}"
+      body:
+        - XROAD_SECURITY_OFFICER
+        - XROAD_REGISTRATION_OFFICER
+        - XROAD_SERVICE_ADMINISTRATOR
+        - XROAD_SYSTEM_ADMINISTRATOR
+        - XROAD_SECURITYSERVER_OBSERVER
+      body_format: json
+      validate_certs: no
+      creates: /home/host/APIKEY
+      dest: /home/host/APIKEY
+    no_log: true
+
+  - name: Register JSON output as a variable
+    command: cat /home/host/APIKEY
+    register: apikey_result
+
+  - name: Set a variable
+    ansible.builtin.set_fact:
+      apikey_json: "{{ apikey_result.stdout | from_json }}"
+
+# Initialize
+#
+  - name: Get initialization status
+    uri:
+      method: GET
+      url: https://localhost:4000/api/v1/initialization/status
+      headers:
+        authorization: X-Road-ApiKey token={{ apikey }}
+      validate_certs: no
+    register: init_status
+
+  - name: Initialize Configuration Anchor
+    when: not init_status.json.is_anchor_imported
+    uri:
+      method: POST
+      url: https://localhost:4000/api/v1/system/anchor
+      headers:
+        authorization: X-Road-ApiKey token={{ apikey }}
+        Content-Type: application/octet-stream
+      src: /home/host/configuration_anchor_egovstack_internal.xml
+      status_code: [200, 201]
+      validate_certs: no
+
+  - name: Initialize Security Server
+    when: not init_status.json.is_server_owner_initialized
+    uri:
+      method: POST
+      url: https://localhost:4000/api/v1/initialization
+      headers:
+        authorization: X-Road-ApiKey token={{ apikey }}
+      body: '{{ api_body | to_json }}'
+      body_format: json
+      status_code: [200, 201]
+      validate_certs: no
+    vars:
+      api_body:
+          owner_member_class: GOV
+          owner_member_code: "0"
+          security_server_code: "{{ inventory_hostname_short }}"
+          software_token_pin: "0123"
+          ignore_warnings: false 
+
+  - name: Get list of security tokens
+    uri:
+      method: GET
+      url: https://localhost:4000/api/v1/tokens
+      headers:
+        authorization: X-Road-ApiKey token={{ apikey }}
+      validate_certs: no
+    register: token_list
+
+  - name: Login to security token
+    when: not softToken0_fromlist.logged_in
+    uri:
+      method: PUT
+      url: https://localhost:4000/api/v1/tokens/{{ softToken0_fromlist.id }}/login
+      headers:
+        authorization: X-Road-ApiKey token={{ apikey }}
+      body: '{{ api_body | to_json }}'
+      body_format: json
+      validate_certs: no
+    vars:
+      api_body:
+          password: "0123"
+
+  - name: Get token info
+    uri:
+      method: GET
+      url: https://localhost:4000/api/v1/tokens/{{ softToken0_fromlist.id }}
+      headers:
+        authorization: X-Road-ApiKey token={{ apikey }}
+      validate_certs: no
+    register: token_info
+
+# Create Signing key
+#
+  - name: Set key type SIGNING
+    ansible.builtin.set_fact:
+      key_type: signing
+
+  - name: Delete {{ key_type }} keys without csr and without certificate
+    when: not item.certificate_signing_requests and not item.certificates
+    uri:
+      method: DELETE
+      url: https://localhost:4000/api/v1/keys/{{ item.id }}
+      headers:
+        authorization: X-Road-ApiKey token={{ apikey }}
+      status_code: [200, 204]
+      validate_certs: no
+    loop: "{{ key_list }}"
+    register: delete_status
+
+  - name: Refresh token info after delete
+    uri:
+      method: GET
+      url: https://localhost:4000/api/v1/tokens/{{ softToken0.id }}
+      headers:
+        authorization: X-Road-ApiKey token={{ apikey }}
+      validate_certs: no
+    register: token_info
+
+  - debug:
+      var: softToken0
+
+  - name: Create {{ key_type }} key csr
+    when: not key_list or not (key_detail.certificate_signing_requests or key_detail.certificates)
+    uri:
+      method: POST
+      url: https://localhost:4000/api/v1/tokens/{{ softToken0.id }}/keys-with-csrs
+      headers:
+        authorization: X-Road-ApiKey token={{ apikey }}
+      body: '{{ api_body | to_json }}'
+      body_format: json
+      validate_certs: no
+    vars:
+      api_body:
+          key_label: "{{ key_name[key_type] }}"
+          csr_generate_request:
+            key_usage_type: "{{ key_type | upper }}"
+            ca_name: "Test CA"
+            csr_format: "PEM"
+            member_id: "egovstack:GOV:0"
+            subject_field_values:
+              C: "egovstack"
+              O: "GOV"
+              CN: "0"
+    register: signing_request
+
+  - name: Remove old files
+    when: signing_request is not skipped
+    command: rm -f /home/host/{{ key_name[key_type] }}.csr /home/host/{{ key_name[key_type] }}.cer
+
+  - name: Refresh token info after csr
+    uri:
+      method: GET
+      url: https://localhost:4000/api/v1/tokens/{{ softToken0.id }}
+      headers:
+        authorization: X-Road-ApiKey token={{ apikey }}
+      validate_certs: no
+    register: token_info
+
+  - debug:
+      var: token_info
+
+  - name: Get {{ key_type }} key csr
+    when: not key_detail.certificates
+    uri:
+      method: GET
+      url: https://localhost:4000/api/v1/keys/{{ key_detail.id }}/csrs/{{ key_detail.certificate_signing_requests[0].id }}?csr_format=PEM
+      headers:
+        authorization: X-Road-ApiKey token={{ apikey }}
+      validate_certs: no
+      creates: /home/host/{{ key_name[key_type] }}.csr
+      dest: /home/host/{{ key_name[key_type] }}.csr
+
+  - name: Get stat of {{ key_name[key_type] }}.cer
+    stat:
+      path: /home/host/{{ key_name[key_type] }}.cer
+    register: stat_info
+
+  - name: Certify {{ key_type }} key
+    when: not stat_info.stat.exists
+    command:
+      cmd: curl -Fcertreq=@{{ key_name[key_type] }}.csr http://ca.egovstack.net:8888/testca/sign -o {{ key_name[key_type] }}.cer
+
+  - name: Upload {{ key_type }} key certificate
+    when: not key_detail.certificates
+    uri:
+      method: POST
+      url: https://localhost:4000/api/v1/token-certificates
+      headers:
+        authorization: X-Road-ApiKey token={{ apikey }}
+        Content-Type: application/octet-stream
+      remote_src: yes
+      src: "{{ key_name[key_type] }}.cer"
+      status_code: [200, 201]
+      validate_certs: no
+
+# Create Authentication key
+#
+  - name: Set key type AUTHENTICATION
+    ansible.builtin.set_fact:
+      key_type: authentication
+
+  - name: Delete {{ key_type }} keys without csr and without certificate
+    when: not item.certificate_signing_requests and not item.certificates
+    uri:
+      method: DELETE
+      url: https://localhost:4000/api/v1/keys/{{ item.id }}
+      headers:
+        authorization: X-Road-ApiKey token={{ apikey }}
+      status_code: [200, 204]
+      validate_certs: no
+    loop: "{{ key_list }}"
+    register: delete_status
+
+  - name: Refresh token info after delete
+    uri:
+      method: GET
+      url: https://localhost:4000/api/v1/tokens/{{ softToken0.id }}
+      headers:
+        authorization: X-Road-ApiKey token={{ apikey }}
+      validate_certs: no
+    register: token_info
+
+  - debug:
+      var: softToken0
+
+  - name: Create {{ key_type }} key csr
+    when: not key_list or not (key_detail.certificate_signing_requests or key_detail.certificates)
+    uri:
+      method: POST
+      url: https://localhost:4000/api/v1/tokens/{{ softToken0.id }}/keys-with-csrs
+      headers:
+        authorization: X-Road-ApiKey token={{ apikey }}
+      body: '{{ api_body | to_json }}'
+      body_format: json
+      validate_certs: no
+    vars:
+      api_body:
+          key_label: "{{ key_name[key_type] }}"
+          csr_generate_request:
+            key_usage_type: "{{ key_type | upper }}"
+            ca_name: "Test CA"
+            csr_format: "PEM"
+            subject_field_values:
+              C: "egovstack"
+              CN: "ss1"
+    register: signing_request
+
+  - name: Remove old files
+    when: signing_request is not skipped
+    command: rm -f /home/host/{{ key_name[key_type] }}.csr /home/host/{{ key_name[key_type] }}.cer
+
+  - name: Refresh token info after csr
+    uri:
+      method: GET
+      url: https://localhost:4000/api/v1/tokens/{{ softToken0.id }}
+      headers:
+        authorization: X-Road-ApiKey token={{ apikey }}
+      validate_certs: no
+    register: token_info
+
+  - debug:
+      var: token_info
+
+  - name: Get {{ key_type }} key csr
+    when: not key_detail.certificates
+    uri:
+      method: GET
+      url: https://localhost:4000/api/v1/keys/{{ key_detail.id }}/csrs/{{ key_detail.certificate_signing_requests[0].id }}?csr_format=PEM
+      headers:
+        authorization: X-Road-ApiKey token={{ apikey }}
+      validate_certs: no
+      creates: /home/host/{{ key_name[key_type] }}.csr
+      dest: /home/host/{{ key_name[key_type] }}.csr
+
+  - name: Get stat of {{ key_name[key_type] }}.cer
+    stat:
+      path: /home/host/{{ key_name[key_type] }}.cer
+    register: stat_info
+
+  - name: Certify {{ key_type }} key
+    when: not stat_info.stat.exists
+    command:
+      cmd: curl -Fcertreq=@{{ key_name[key_type] }}.csr http://ca.egovstack.net:8888/testca/sign -o {{ key_name[key_type] }}.cer
+
+  - name: Upload {{ key_type }} key certificate
+    when: not key_detail.certificates
+    uri:
+      method: POST
+      url: https://localhost:4000/api/v1/token-certificates
+      headers:
+        authorization: X-Road-ApiKey token={{ apikey }}
+        Content-Type: application/octet-stream
+      remote_src: yes
+      src: "{{ key_name[key_type] }}.cer"
+      status_code: [200, 201]
+      validate_certs: no
+
+  - name: Refresh token info after cert upload
+    uri:
+      method: GET
+      url: https://localhost:4000/api/v1/tokens/{{ softToken0.id }}
+      headers:
+        authorization: X-Road-ApiKey token={{ apikey }}
+      validate_certs: no
+    register: token_info
+
+  - debug:
+      var: key_detail
+
+  - name: Register certificate
+    uri:
+      method: PUT
+      url: https://localhost:4000/api/v1/token-certificates/{{ key_detail.certificates[0].certificate_details.hash }}/register
+      headers:
+        authorization: X-Road-ApiKey token={{ apikey }}
+      body: '{{ api_body | to_json }}'
+      body_format: json
+      status_code: [200, 201, 204]
+      validate_certs: no
+    vars:
+      api_body:
+          address: "{{ inventory_hostname }}"
+
