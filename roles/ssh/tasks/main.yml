@@ -1,0 +1,7 @@
+---
+- name: Add local public key for key-based SSH authentication
+  authorized_key:
+    user: "{{ username }}"
+    state: present
+    key: "{{ lookup('file', public_key) }}"
+

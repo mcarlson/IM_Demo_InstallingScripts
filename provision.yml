@@ -1,0 +1,197 @@
+---
+- name: Provision a new server with SSH key, and updated software
+  hosts: all
+
+  # Specify the user you want to connect to the server.
+  # With a new installation, you will connect with `root`. If you want to
+  # re-run this playbook at a later date, you should change `remote_user` to
+  # the user you specified under `vars/username` below and uncomment the
+  # `become: true` line. You should then run the playbook using the
+  # `--ask-become-pass` flag, like so:
+  # `ansible-playbook -k provision.yml --ask-become-pass`.
+  remote_user: root
+  # become: true
+
+  vars:
+    username: host
+
+    # Check the README for information about creating a hashed password
+    password: $6$rounds=656000$nu8NSZXJ5.7PTfjq$5fvlD50cJ9Wa60NLxneLpdS1PxzagQkjM2W6x9DfN/VJM5NBUeVEvlRTXsG5H7nV0zwH3xFyRTdVorJZTzkHZ.
+    public_key: ~/.ssh/id_rsa.pub
+
+  roles:
+    - domainname
+    - user
+    - packages
+    - ssh
+
+
+- name: Store known hosts of 'all' the hosts in the inventory file
+  hosts: localhost
+  connection: local
+
+  vars:
+    ssh_known_hosts_file: "{{ lookup('env','HOME') + '/.ssh/known_hosts' }}"
+    ssh_known_hosts: "{{ groups['all'] }}"
+
+  tasks:
+
+  - name: For each host, scan for its ssh public key
+    shell: "ssh-keyscan {{ item }},`dig +short {{ item }}`"
+    with_items: "{{ ssh_known_hosts }}"
+    register: ssh_known_host_results
+    ignore_errors: yes
+
+  - name: Add/update the public key in the '{{ ssh_known_hosts_file }}'
+    known_hosts:
+      name: "{{ item.item }}"
+      key: "{{ item.stdout }}"
+      path: "{{ ssh_known_hosts_file }}"
+    with_items: "{{ ssh_known_host_results.results }}"
+
+
+- name: Get certificates
+  hosts: all
+
+  remote_user: root
+
+  vars_filenames: vars_with_secret.yml
+  vars:
+    acme_challenge_type: dns-01
+    acme_directory: https://acme-v02.api.letsencrypt.org/directory
+    acme_directory_test: https://acme-staging-v02.api.letsencrypt.org/directory 
+    acme_version: 2
+    acme_email: aleksander.reitsakas@mail.ee
+    letsencrypt_dir: /etc/letsencrypt
+    letsencrypt_keys_dir: /etc/letsencrypt/keys
+    letsencrypt_csrs_dir: /etc/letsencrypt/csrs
+    letsencrypt_certs_dir: /etc/letsencrypt/certs
+    letsencrypt_account_key: /etc/letsencrypt/account/account.key
+    api_url: "{{ 'https://api.digitalocean.com/v2/domains/'+dns_domain+'/records' }}"
+    dns_domain: egovstack.net
+    words: "{{ inventory_hostname.split('.') }}"
+    domain_name: "{{ words[0]+'.ext.'+'.'.join(words[1:]) }}"
+    domain_name_short: "{{ words[0]+'.ext' }}"
+
+  tasks:
+
+  - name: "Create required directories in /etc/letsencrypt"
+    file:
+      path: "/etc/letsencrypt/{{ item }}"
+      state: directory
+      owner: root
+      group: root
+      mode: u=rwx,g=x,o=x
+    with_items:
+    - account
+    - certs
+    - csrs
+    - keys
+
+  - name: "Generate a Let's Encrypt account key"
+    shell: "if [ ! -f {{ letsencrypt_account_key }} ]; then openssl genrsa 4096 | sudo tee {{ letsencrypt_account_key }}; fi"
+
+  - name: "Generate Let's Encrypt private key"
+    shell: "if [ ! -f {{ letsencrypt_keys_dir }}/{{ domain_name }}.key ]; then openssl genrsa 4096 | sudo tee {{ letsencrypt_keys_dir }}/{{ domain_name }}.key; fi"
+
+  - name: provide script for calculating subject alt name
+    copy:
+      content: |
+        LIST=
+        # for i in `ip addr | grep 'scope global' | tr '/' ' ' | awk '{print $2}'`; do LIST+="IP:$i,"; done; # LetsEncrypt do not certify IP
+        export ALT=${LIST}DNS:{{ domain_name }},DNS:{{ inventory_hostname }}
+      dest: "{{ letsencrypt_dir }}/fillALT.sh"
+
+  - name: provide conf for certificate request
+    copy:
+      content: |
+        default_md  = sha256
+        [ req ]
+        default_bits        = 2048
+        days                = 7300
+        distinguished_name  = req_distinguished_name
+        string_mask         = utf8only
+        [ req_distinguished_name ]
+        countryName         = Country Name (2 letter code)
+        countryName_min     = 2
+        countryName_max     = 2
+        stateOrProvinceName = State or Province Name (full name)
+        localityName        = Locality Name (eg, city)
+        organizationalUnitName  = Organizational Unit Name (eg, section)
+        commonName          = Common Name (e.g. server FQDN or YOUR name)
+        commonName_max      = 64
+        [ tls_alt ]
+        basicConstraints=critical,CA:TRUE,pathlen:0
+        keyUsage=nonRepudiation,keyEncipherment,digitalSignature,keyCertSign
+        subjectAltName=$ENV::ALT
+      dest: "{{ letsencrypt_dir }}/openssl.cnf"
+
+  - name: "Generate Let's Encrypt CSR"
+    shell: . {{ letsencrypt_dir }}/fillALT.sh; openssl req -new -nodes -out {{ letsencrypt_csrs_dir }}/{{ domain_name }}.csr -key {{ letsencrypt_keys_dir }}/{{ domain_name }}.key  -config {{ letsencrypt_dir }}/openssl.cnf -subj "/CN={{ domain_name }}" -reqexts tls_alt
+    args:
+      executable: /bin/bash
+
+  - name: "Begin Let's Encrypt challenges"
+    acme_certificate:
+      acme_directory: "{{ acme_directory }}"
+      acme_version: "{{ acme_version }}"
+      account_key_src: "{{ letsencrypt_account_key }}"
+      account_email: "{{ acme_email }}"
+      terms_agreed: 1
+      challenge: "{{ acme_challenge_type }}"
+      csr: "{{ letsencrypt_csrs_dir }}/{{ domain_name }}.csr"
+      dest: "{{ letsencrypt_certs_dir }}/{{ domain_name }}.crt"
+      fullchain_dest: "{{ letsencrypt_certs_dir }}/fullchain_{{ domain_name }}.crt"
+      remaining_days: 91
+    register: acme_challenge_domain
+
+  - name: acme challenge domain debug
+    debug:
+      var: acme_challenge_domain
+      verbosity: 1
+
+  - name: add challenge address
+    uri:
+      method: POST
+      url: "{{ api_url }}"
+      headers:
+        authorization: Bearer {{ digital_ocean_token }}
+      body: '{{ api_body | to_json }}'
+      body_format: json
+      status_code: [200, 201]
+    vars:
+      record: "{{ item.value['dns-01'].record }}"
+      api_body:
+          type: TXT
+          name: "{{ record[:-(dns_domain | length)-1] }}"
+          data: "{{ item.value['dns-01'].resource_value }}"
+    loop: "{{ acme_challenge_domain.challenge_data | dict2items }}"
+    register: challenge_records
+
+  - name: POST result debug
+    debug:
+      var: challenge_records
+      verbosity: 1
+
+  - name: "Complete Let's Encrypt challenges"
+    acme_certificate:
+      acme_directory: "{{ acme_directory }}"
+      acme_version: "{{ acme_version }}"
+      account_key_src: "{{ letsencrypt_account_key }}"
+      account_email: "{{ acme_email }}"
+      challenge: "{{ acme_challenge_type }}"
+      csr: "{{ letsencrypt_csrs_dir }}/{{ domain_name }}.csr"
+      dest: "{{ letsencrypt_certs_dir }}/{{ domain_name }}.crt"
+      chain_dest: "{{ letsencrypt_certs_dir }}/chain_{{ domain_name }}.crt"
+      fullchain_dest: "{{ letsencrypt_certs_dir }}/fullchain_{{ domain_name }}"
+      data: "{{ acme_challenge_domain }}"
+
+  - name: delete challenge address
+    uri:
+      method: DELETE
+      url: "{{ api_url+'/'+(item.json.domain_record.id | string) }}"
+      headers:
+        authorization: Bearer {{ digital_ocean_token }}
+      status_code: [200, 204]
+    loop: "{{ challenge_records.results }}"
+...

@@ -1,0 +1,138 @@
+---
+- hosts: localhost
+  connection: local
+  gather_facts: False
+
+  vars_files: vars_with_secret.yml
+  vars:
+    dns_domain: egovstack.net
+    droplet_region: ams3
+    droplet_image:
+      cs: ubuntu-20-04-x64
+      cp: ubuntu-20-04-x64
+      ss: ubuntu-20-04-x64
+      ca: ubuntu-20-04-x64
+      mi: ubuntu-18-04-x64
+    #droplet_vpc: 9c7e82dd-e90b-449f-9c97-0b89e107e38e
+    droplet_size:
+      cs: s-1vcpu-2gb
+      cp: s-1vcpu-1gb
+      ss: s-2vcpu-4gb
+      ca: s-1vcpu-1gb
+      mi: s-2vcpu-4gb
+    domain_records: "{{ domain_records_resp.json.domain_records }}"
+    domain_names: "{{ domain_records | map(attribute='name') | list }}"
+    droplets_changed: "{{ droplet_result.results | default([]) | selectattr('changed') | map(attribute='data') | list }}"
+    item_name: "{{ item.droplet.name.split('.')[0] }}"
+    item_ext_name: "{{ item.droplet.name.split('.')[0]+'.ext' }}"
+    public_record:
+      name: "{{ item_ext_name }}"
+      data: "{{ item.ip_address }}"
+      id: "{{ (domain_records | selectattr('name', 'equalto', item_ext_name) | list | default([{'id':'?'}],true))[0]['id'] }}"
+      val: "{{ (domain_records | selectattr('name', 'equalto', item_ext_name) | list | default([{'data':'?'}],true))[0]['data'] }}"
+    private_record:
+      name: "{{ item_name }}"
+      data: "{{ item.private_ipv4_address }}"
+      id: "{{ (domain_records | selectattr('name', 'equalto', item_name) | list | default([{'id':'?'}],true))[0]['id'] }}"
+      val: "{{ (domain_records | selectattr('name', 'equalto', item_name) | list | default([{'data':'?'}],true))[0]['data'] }}"
+    api_url: "{{ 'https://api.digitalocean.com/v2/domains/'+dns_domain+'/records' }}"
+
+  tasks:
+
+  - name: create a new droplet assigning the key
+    digital_ocean_droplet:
+      name: "{{ item.split('.')[0] }}"
+      oauth_token: "{{ digital_ocean_token }}"
+      size: "{{ droplet_size[item[0:2]] }}"
+      region: "{{ droplet_region }}"
+      image: "{{ droplet_image[item[0:2]] }}"
+      # vpc_uuid: "{{ droplet_vpc }}"
+      wait_timeout: 600
+      unique_name: yes
+      wait: yes
+      ssh_keys: "{{ ssh_key_fingerprint }}"
+      state: present
+    with_inventory_hostnames:
+            - all
+    register: droplet_result
+
+  - name: -v to print changed
+    debug:
+      var: droplets_changed
+      verbosity: 1
+
+  - name: fetch all records of domain
+    uri:
+      url: "{{ api_url+'?type=A' }}"
+      headers:
+        accept: application/json
+        authorization: Bearer {{ digital_ocean_token }}
+    register: domain_records_resp
+
+  - name: -v to print domain names
+    debug:
+      var: domain_names
+      verbosity: 1
+
+  - name: update public address
+    when: public_record.name in domain_names and public_record.data!=public_record.val
+    uri:
+      method: PUT
+      url: "{{ api_url+'/'+public_record.id }}"
+      headers:
+        authorization: Bearer {{ digital_ocean_token }}
+      body: "{{ api_body | to_json }}"
+      body_format: json
+    vars:
+      api_body:
+        data:  "{{ public_record.data }}"
+    loop: "{{ droplets_changed }}"
+
+  - name: update private address
+    when: private_record.name in domain_names and private_record.data!=private_record.val
+    uri:
+      method: PUT
+      url: "{{ api_url+'/'+private_record.id }}"
+      headers:
+        authorization: Bearer {{ digital_ocean_token }}
+      body: "{{ api_body | to_json }}"
+      body_format: json
+    vars:
+      api_body:
+        data:  "{{ private_record.data }}"
+    loop: "{{ droplets_changed }}"
+
+  - name: add public address
+    when: public_record.name not in domain_names
+    uri:
+      method: POST
+      url: "{{ api_url }}"
+      headers:
+        authorization: Bearer {{ digital_ocean_token }}
+      body: '{{ api_body | to_json }}'
+      body_format: json
+      status_code: [200, 201]
+    vars:
+      api_body:
+          type: A
+          name: "{{ public_record.name }}"
+          data:  "{{ public_record.data }}"
+    loop: "{{ droplets_changed }}"
+
+  - name: add private address
+    when: private_record.name not in domain_names
+    uri:
+      method: POST
+      url: "{{ api_url }}"
+      headers:
+        authorization: Bearer {{ digital_ocean_token }}
+      body: '{{ api_body | to_json }}'
+      body_format: json
+      status_code: [200, 201]
+    vars:
+      api_body:
+          type: A
+          name: "{{ private_record.name }}"
+          data:  "{{ private_record.data }}"
+    loop: "{{ droplets_changed }}"
+

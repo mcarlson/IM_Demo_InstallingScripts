@@ -1,0 +1,9 @@
+---
+- name: Create the non-root user account
+  user:
+    name: "{{ username }}"
+    password: "{{ password }}"
+    shell: /bin/bash
+    update_password: on_create
+    groups: sudo
+    append: yes

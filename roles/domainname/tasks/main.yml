@@ -1,0 +1,7 @@
+---
+- name: Insert domain name
+  replace:
+    path: /etc/hosts
+    regexp: (\s){{ inventory_hostname_short }}([ \t])
+    replace: \1{{ inventory_hostname }}\2
+

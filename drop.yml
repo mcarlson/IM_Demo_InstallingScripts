@@ -1,0 +1,76 @@
+---
+- hosts: localhost
+  connection: local
+  gather_facts: False
+
+  vars_files: vars_with_secret.yml
+  vars:
+    dns_domain: egovstack.net
+    droplet_region: ams3
+    droplet_image:
+      cs: ubuntu-20-04-x64
+      cp: ubuntu-20-04-x64
+      ss: ubuntu-20-04-x64
+      ca: ubuntu-20-04-x64
+      mi: ubuntu-18-04-x64
+    #droplet_vpc: 9c7e82dd-e90b-449f-9c97-0b89e107e38e
+    droplet_size:
+      cs: s-1vcpu-2gb
+      cp: s-1vcpu-1gb
+      ss: s-2vcpu-4gb
+      ca: s-1vcpu-1gb
+      mi: s-2vcpu-4gb
+    domain_records: "{{ domain_records_resp.json.domain_records }}"
+    domain_names: "{{ domain_records | map(attribute='name') | list }}"
+    droplets_changed: "{{ droplet_result.results | default([]) | selectattr('changed') | map(attribute='data') | list }}"
+    item_name: "{{ item.droplet.name.split('.')[0] }}"
+    item_ext_name: "{{ item.droplet.name.split('.')[0]+'.ext' }}"
+    public_record:
+      name: "{{ item_ext_name }}"
+      data: "{{ item.ip_address }}"
+      id: "{{ (domain_records | selectattr('name', 'equalto', item_ext_name) | list | default([{'id':'?'}],true))[0]['id'] }}"
+      val: "{{ (domain_records | selectattr('name', 'equalto', item_ext_name) | list | default([{'data':'?'}],true))[0]['data'] }}"
+    private_record:
+      name: "{{ item_name }}"
+      data: "{{ item.private_ipv4_address }}"
+      id: "{{ (domain_records | selectattr('name', 'equalto', item_name) | list | default([{'id':'?'}],true))[0]['id'] }}"
+      val: "{{ (domain_records | selectattr('name', 'equalto', item_name) | list | default([{'data':'?'}],true))[0]['data'] }}"
+    api_url: "{{ 'https://api.digitalocean.com/v2/domains/'+dns_domain+'/records' }}"
+
+  tasks:
+
+  - name: delete droplets
+    digital_ocean_droplet:
+      name: "{{ item.split('.')[0] }}"
+      oauth_token: "{{ digital_ocean_token }}"
+      unique_name: yes
+      wait_timeout: 600
+      wait: yes
+      state: absent
+    with_inventory_hostnames:
+            - all
+    register: droplet_result
+
+  - name: fetch all records of domain
+    uri:
+      url: "{{ api_url+'?type=A' }}"
+      headers:
+        accept: application/json
+        authorization: Bearer {{ digital_ocean_token }}
+    register: domain_records_resp
+
+  - name: delete address
+    vars:
+       words: "{{ item.name.split('.') }}"
+    when: (words|length==2 and words[1]=='ext' and words[0]+'.'+dns_domain in groups['all']
+           or (words|length==1 and words[0]+'.'+dns_domain in groups['all']))
+    uri:
+      method: DELETE
+      url: "{{ api_url+'/'+(item.id | string) }}"
+      headers:
+        authorization: Bearer {{ digital_ocean_token }}
+      status_code:
+        - 200
+        - 204
+    loop: "{{ domain_records }}"
+
