@@ -50,23 +50,21 @@ $ ansible-playbook -i ./hosts digitalocean.yml
 $ ansible-playbook -i ./hosts drop.yml
 ```
 
-Be sure to add/remove each droplet's IPs to the Ansible inventory, e.g. by editing `hosts`.
+## Set up SSL certificates and SSH access to droplets
 
-## Set up SSL certificates and SSH access droplets
-
-1. Add hosts key to droplets:
+1. Add known hosts to all droplets:
 
 ```
 $ ANSIBLE_HOST_KEY_CHECKING=false ansible-playbook -i hosts store_known_hosts.yml
 ```
 
-2. This playbook creates non-root user, updates packages, configures SSH access, and generates LetsEncrypt certificates:
+2. This playbook creates non-root user, updates packages, configures SSH access, and generates LetsEncrypt certificates for all droplets. On `ansible.egovstack.net`, hit `<enter>` for the forst `SSH password:` prompt. Use `password` from `vars_with_secret.yml` for the `BECOME password[defaults to SSH password]:` prompt. :
 
 ```
-$ ansible-playbook -i hosts -k provision.yml
+$ ansible-playbook -i hosts -k provision.yml --ask-become-pass
 ```
 
-3. Reboot all droplets:
+3. Reboot all droplets. On `ansible.egovstack.net`, use `password` from `vars_with_secret.yml` for the `BECOME password:` prompt:
 
 ```
 $ ansible --ask-become-pass -i hosts -b -m reboot all
