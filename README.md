@@ -54,8 +54,6 @@ Be sure to add/remove each droplet's IPs to the Ansible inventory, e.g. by editi
 
 ## Set up SSL certificates and SSH access droplets
 
-*TODO: How is this script used?*
-
 1. Add hosts key to droplets:
 
 ```
