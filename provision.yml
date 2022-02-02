@@ -15,7 +15,7 @@
   vars:
     username: host
 
-    # Check the README for information about creating a hashed password
+    # Check provision.README.md for information about creating a hashed password
     password: $6$rounds=656000$nu8NSZXJ5.7PTfjq$5fvlD50cJ9Wa60NLxneLpdS1PxzagQkjM2W6x9DfN/VJM5NBUeVEvlRTXsG5H7nV0zwH3xFyRTdVorJZTzkHZ.
     public_key: ~/.ssh/id_rsa.pub
 
@@ -55,7 +55,7 @@
 
   remote_user: root
 
-  vars_filenames: vars_with_secret.yml
+  vars_files: vars_with_secret.yml
   vars:
     acme_challenge_type: dns-01
     acme_directory: https://acme-v02.api.letsencrypt.org/directory
