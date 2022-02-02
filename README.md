@@ -16,8 +16,39 @@ See the [Functional demo sandbox tasks](https://docs.google.com/document/d/19TgK
 
 1. Edit `digital_ocean_token` in `vars_with_secret.yml` to include your API Token and SSH keys for access. To create a Digital Ocean API token, see [API -> Tokens/Keys -> Generate New Token](https://cloud.digitalocean.com/account/api/tokens?i=a99fae&preserveScrollPosition=true). Be sure to create tokens with read/write privileges.
 2. Edit `ssh_key_fingerprint` in `vars_with_secret.yml` to include the fingerprint of the Digital Ocean SSH key to be added to new droplets. You can add a new SSH key, or use the existing `host@ansible` SSH key in Digital Ocean. To get the fingerprint of an existing SSH key for an existing Digital Ocean SSH key, see your team's security settings, e.g. [Account Settings -> Security -> SSH Keys](https://cloud.digitalocean.com/account/security?i=a99fae).
-3. Use the `digitalocean.yml` Ansible script to create droplets. 
-4. Use the `drop.yml` Ansible script to destroy droplets.
+3. Edit the hosts file to include your new droplets. Droplets of the same type should have the same prefix, e.g.:
+
+```
+...
+
+#eregistration
+[ereg]
+er1.egovstack.net
+er2.egovstack.net
+
+...
+```
+
+4. Edit `digitalocean.yml` to include the correct starting image and droplet type, e.g.:
+
+```
+    droplet_image:
+      er: ubuntu-18-04-x64
+    droplet_size:
+      er: s-2vcpu-4gb
+```
+
+5. Use the `digitalocean.yml` Ansible script to create all droplets:
+
+```
+$ ansible-playbook -i ./hosts digitalocean.yml
+```
+
+6. Use the `drop.yml` Ansible script to destroy droplets.
+
+```
+$ ansible-playbook -i ./hosts drop.yml
+```
 
 Be sure to add/remove each droplet's IPs to the Ansible inventory, e.g. by editing `hosts`.
 
@@ -49,7 +80,6 @@ Be sure to add/remove each droplet's IPs to the Ansible inventory, e.g. by editi
 *TODO: How is this different from the section in provision.yml? When do we need to run it?*
 
 To update the SSH known hosts for all droplets, run:
-
 ```
 # ansible-playbook -k store_known_hosts.yml
 ```

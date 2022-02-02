@@ -28,6 +28,11 @@ cp_servers
 ca_servers
 misp_servers
 
+#eregistration
+[ereg]
+er1.egovstack.net
+er2.egovstack.net
+
 ### vars ###
 
 [ss_servers:vars]

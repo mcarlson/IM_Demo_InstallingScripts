@@ -13,6 +13,7 @@
       ss: ubuntu-20-04-x64
       ca: ubuntu-20-04-x64
       mi: ubuntu-18-04-x64
+      er: ubuntu-18-04-x64
     #droplet_vpc: 9c7e82dd-e90b-449f-9c97-0b89e107e38e
     droplet_size:
       cs: s-1vcpu-2gb
@@ -20,19 +21,22 @@
       ss: s-2vcpu-4gb
       ca: s-1vcpu-1gb
       mi: s-2vcpu-4gb
+      er: s-2vcpu-4gb
     domain_records: "{{ domain_records_resp.json.domain_records }}"
     domain_names: "{{ domain_records | map(attribute='name') | list }}"
     droplets_changed: "{{ droplet_result.results | default([]) | selectattr('changed') | map(attribute='data') | list }}"
     item_name: "{{ item.droplet.name.split('.')[0] }}"
+    item_ip_address: "{{ item.droplet.networks.v4[lookup('ansible.utils.index_of', item.droplet.networks.v4, 'eq', 'public', 'type')].ip_address }}"
     item_ext_name: "{{ item.droplet.name.split('.')[0]+'.ext' }}"
+    item_private_ip_address: "{{ item.droplet.networks.v4[lookup('ansible.utils.index_of', item.droplet.networks.v4, 'eq', 'private', 'type')].ip_address }}"
     public_record:
       name: "{{ item_ext_name }}"
-      data: "{{ item.ip_address }}"
+      data: "{{ item_ip_address }}"
       id: "{{ (domain_records | selectattr('name', 'equalto', item_ext_name) | list | default([{'id':'?'}],true))[0]['id'] }}"
       val: "{{ (domain_records | selectattr('name', 'equalto', item_ext_name) | list | default([{'data':'?'}],true))[0]['data'] }}"
     private_record:
       name: "{{ item_name }}"
-      data: "{{ item.private_ipv4_address }}"
+      data: "{{ item_private_ip_address }}"
       id: "{{ (domain_records | selectattr('name', 'equalto', item_name) | list | default([{'id':'?'}],true))[0]['id'] }}"
       val: "{{ (domain_records | selectattr('name', 'equalto', item_name) | list | default([{'data':'?'}],true))[0]['data'] }}"
     api_url: "{{ 'https://api.digitalocean.com/v2/domains/'+dns_domain+'/records' }}"
