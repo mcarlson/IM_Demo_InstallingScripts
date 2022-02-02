@@ -4,7 +4,7 @@ This project provides scripts for creating and configuring GovStack sandbox envi
 
 We use [Ansible](https://www.ansible.com/) for scripting and [Digital Ocean](https://www.digitalocean.com/) for hosting. These Ansible scripts borrow from [ssdnodes-ansible-provision](https://github.com/joelhans/ssdnodes-ansible-provision.git)
 
-See the [Functional demo sandbox tasks](https://docs.google.com/document/d/19TgKog4yiA3Ci6LXUNfK-ui8OdtBZuXniyWYbH4L5LY/edit#heading=h.h9szyt5mczga) for more details.
+See the [Functional demo sandbox tasks](https://docs.google.com/document/d/19TgKog4yiA3Ci6LXUNfK-ui8OdtBZuXniyWYbH4L5LY/edit#heading=h.h9szyt5mczga) for more details on this project.
 
 ## Initial setup
 
@@ -56,30 +56,24 @@ Be sure to add/remove each droplet's IPs to the Ansible inventory, e.g. by editi
 
 *TODO: How is this script used?*
 
-1. See [provision.README.md](provision.README.md) for more details on how to configure `provision.yml`.
-2. Run the playbook:
+1. Add hosts key to droplets:
 
 ```
-# ansible-playbook -k provision.yml
+$ ANSIBLE_HOST_KEY_CHECKING=false ansible-playbook -i hosts store_known_hosts.yml
+```
+
+2. This playbook creates non-root user, updates packages, configures SSH access, and generates LetsEncrypt certificates:
+
+```
+$ ansible-playbook -i hosts -k provision.yml
+```
+
+3. Reboot all droplets:
+
+```
+$ ansible --ask-become-pass -i hosts -b -m reboot all
 ```
 
 ## Set up Information Mediator
 
-*TODO: Need details on how to set up the existing IM cluster here: ss1-3, cs, etc. This should be a complete step-by-step runbook with troubleshooting and manual configuration steps included.*
-
-1. Edit `password` in `vars_with_secret.yml` to include the plaintext password used to create security server API keys.
-2. See `init_ss1.yml` for setting up a security server and `use_certs.yml` for configuring certificates on the central server.
-3. Run the appropriate playbooks:
-
-```
-# ansible-playbook -k init_ss1.yml
-```
-
-## Updating known droplets for SSH access
-
-*TODO: How is this different from the section in provision.yml? When do we need to run it?*
-
-To update the SSH known hosts for all droplets, run:
-```
-# ansible-playbook -k store_known_hosts.yml
-```
+See [Installing X-Road on DigitalOcean](https://docs.google.com/document/d/17B-LnWdMlpIblM7nodchec6uMRCTtyHXM2sJvhN0xcA/edit#) for more details on how to set up the XRoad as an Information Mediator.
