@@ -13,7 +13,7 @@
       ss: ubuntu-20-04-x64
       ca: ubuntu-20-04-x64
       mi: ubuntu-18-04-x64
-      er: ubuntu-18-04-x64
+      er: ubuntu-20-04-x64
     #droplet_vpc: 9c7e82dd-e90b-449f-9c97-0b89e107e38e
     droplet_size:
       cs: s-1vcpu-2gb

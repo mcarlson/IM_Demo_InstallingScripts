@@ -1,32 +1,11 @@
 #central servers (ubuntu)
-[cs_servers]
-cs.egovstack.net
-
-#security servers (ubuntu or rhel)
-[ss_servers]
-ss1.egovstack.net
-ss2.egovstack.net
-ss3.egovstack.net
-
-#configuration proxies (ubuntu)
-[cp_servers]
-#cp.in.egovstack.net ansible_ssh_user=host
-
-#certification authority, time stamping authority and ocsp service server (ubuntu)
-[ca_servers]
-ca.egovstack.net
-
-#MISP
-[misp_servers]
-misp.egovstack.net
+[ereg_servers]
+er1.egovstack.net
+er2.egovstack.net
 
 #a custom super group for overriding variable defaults
 [example:children]
-cs_servers
-ss_servers
-cp_servers
-ca_servers
-misp_servers
+ereg_servers
 
 #eregistration
 [ereg]
@@ -35,7 +14,7 @@ er2.egovstack.net
 
 ### vars ###
 
-[ss_servers:vars]
+[ereg_servers:vars]
 variant=vanilla
 
 [all:vars]
