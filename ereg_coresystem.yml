@@ -1,0 +1,156 @@
+---
+- name: Core system setup for eregistrations v4
+
+  hosts: er1.egovstack.net
+
+  vars_files: vars_with_secret.yml
+  vars:
+    user: xrd
+
+  tasks:
+
+  - name: Purge unneeded packages
+    apt:
+      pkg:
+        - dovecot
+        - sw-nginx
+        - sw-engine
+        - sw-cp-server
+        - sw-collectd
+        - apache2*
+        - mysql-common
+        - postfix*
+        - bind9*
+        # - plesk*
+      state: absent
+    become: true
+
+# See https://docs.mongodb.com/manual/tutorial/install-mongodb-on-ubuntu/
+
+  - name: Add mongodb-org apt signing key
+    ansible.builtin.apt_key:
+      url: https://www.mongodb.org/static/pgp/server-5.0.asc
+      state: present
+    become: true
+
+  - name: Add mongodb-org repository into sources list
+    ansible.builtin.apt_repository:
+      repo: deb [ arch=amd64,arm64 ] https://repo.mongodb.org/apt/ubuntu focal/mongodb-org/5.0 multiverse
+      state: present
+    become: true
+
+  - name: Install mongodb-org
+    apt:
+      pkg:
+        - mongodb-org
+    become: true
+
+# See https://www.digitalocean.com/community/tutorials/how-to-install-and-configure-elasticsearch-on-ubuntu-20-04
+
+  - name: Add elasticsearch apt signing key
+    ansible.builtin.apt_key:
+      url: https://artifacts.elastic.co/GPG-KEY-elasticsearch
+      state: present
+    become: true
+
+  - name: Add elasticsearch repository into sources list
+    ansible.builtin.apt_repository:
+      repo: deb https://artifacts.elastic.co/packages/7.x/apt stable main
+      state: present
+    become: true
+
+  - name: Install elasticsearch
+    apt:
+      pkg:
+        - elasticsearch
+    become: true
+
+
+# See https://docs.docker.com/engine/install/ubuntu/
+
+  - name: Add docker apt signing key
+    ansible.builtin.apt_key:
+      url: https://download.docker.com/linux/ubuntu/gpg
+      state: present
+    become: true
+
+  - name: Add docker repository into sources list
+    ansible.builtin.apt_repository:
+      repo: deb [ arch=amd64 ] https://download.docker.com/linux/ubuntu focal stable
+      state: present
+    become: true
+
+  - name: Install docker-ce
+    apt:
+      pkg:
+        - docker-ce
+        - docker-ce-cli
+        - containerd.io
+    become: true
+
+
+# See https://www.digitalocean.com/community/tutorials/how-to-install-and-configure-zabbix-to-securely-monitor-remote-servers-on-ubuntu-20-04
+
+  - name: Install zabbix .deb package
+    apt:
+      deb: https://repo.zabbix.com/zabbix/5.0/ubuntu/pool/main/z/zabbix-release/zabbix-release_5.0-1+focal_all.deb
+    become: true
+
+  - name: Install zabbix-agent2
+    apt:
+      pkg: zabbix-agent2
+      update_cache: yes
+    become: true
+
+
+# See https://haproxy.debian.net/#?distribution=Ubuntu&release=focal&version=2.4
+
+  - name: Install software-properties-common for haproxy
+    apt:
+      pkg: software-properties-common
+      install_recommends: no
+    become: true
+
+  - name: Add docker repository into sources list
+    ansible.builtin.apt_repository:
+      repo: ppa:vbernat/haproxy-2.4
+      state: present
+    become: true
+
+  - name: Install haproxy
+    apt:
+      pkg: haproxy=2.4.*
+      update_cache: yes
+    become: true
+
+  - name: Install additional packages
+    apt:
+      pkg:
+        - auditd
+        - screen
+        - git
+        - qemu-guest-agent
+        - pbzip2
+        - python3-venv
+        - python3-pip
+        - vim-nox
+        - htop
+        - ncftp
+        - certbot
+        - ufw
+        - haproxyctl
+        - apt-transport-https
+        - ca-certificates
+        - curl
+        - default-jdk
+        - aptitude
+        - postgresql
+        - mongodb-org
+        - redis-server
+        - socat
+    become: true
+
+  - name: Reboot
+    reboot:
+      reboot_timeout: 3600
+    become: true
