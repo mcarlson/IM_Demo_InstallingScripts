@@ -154,3 +154,39 @@
     reboot:
       reboot_timeout: 3600
     become: true
+
+# install eregistrations
+
+  - name: Add the ereg user
+    ansible.builtin.user:
+      name: ereg
+    become: true
+
+  - name: Creates directory
+    ansible.builtin.file:
+      path: /opt/eregistrations
+      state: directory
+      mode: '0755'
+    become: true
+
+  - name: Clone eregistrations repo
+    ansible.builtin.git:
+      repo: https://bitbucket.org/unctad/eregistrations-starter-conf.git
+      dest: /opt/eregistrations
+      single_branch: yes
+      version: master
+    become: true
+
+  - name: Install specified python requirements
+    pip:
+      requirements: /opt/eregistrations/scripts/requirements.txt
+    become: true
+
+  - name: Creates directory
+    ansible.builtin.file:
+      path: /opt/eregistrations
+      state: directory
+      owner: ereg
+      group: ereg
+      mode: '0755'
+    become: true
