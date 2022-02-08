@@ -73,3 +73,10 @@ $ ansible --ask-become-pass -i hosts -b -m reboot all
 ## Set up Information Mediator
 
 See [Installing X-Road on DigitalOcean](https://docs.google.com/document/d/17B-LnWdMlpIblM7nodchec6uMRCTtyHXM2sJvhN0xcA/edit#) for more details on how to set up the XRoad as an Information Mediator.
+
+## Set up ERegistration
+
+
+```
+$ ansible-playbook -i hosts -k ereg_coresystem.yml --ask-become-pass
+```
