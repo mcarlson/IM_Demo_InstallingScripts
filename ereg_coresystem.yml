@@ -148,30 +148,83 @@
         - mongodb-org
         - redis-server
         - socat
+        - acl # for postgres/ansible
     become: true
 
-# See https://docs.ansible.com/ansible/latest/collections/community/docker/docsite/scenario_guide.html#ansible-collections-community-docker-docsite-scenario-guide
+# Install keycloak, see https://hub.docker.com/r/bitnami/keycloak/
 
-#   - name: Install Docker SDK for Python for Python 3.6
-#     pip:
-#       name: docker
-#     become: true
+# Required for Ansible docker support, see https://docs.ansible.com/ansible/latest/collections/community/docker/docsite/scenario_guide.html#ansible-collections-community-docker-docsite-scenario-guide
 
-# # See https://www.keycloak.org/getting-started/getting-started-docker
+  - name: Install Ansible Docker support for Python
+    pip:
+      name: docker
+    become: true
 
-#   - name: Install keycloak docker image
-#     docker_container:
-#       image: quay.io/keycloak/keycloak:16.1.1
-#       docker run -p 8080:8080 -e KEYCLOAK_USER=admin -e KEYCLOAK_PASSWORD=admin
-#       name: keycloak
-#       state: started
-#       auto_remove: true
-#       ports:
-#         - "8080:8080"
+  - name: Allow docker to connect to postgres
+    blockinfile:
+      create: yes
+      dest: /etc/postgresql/12/main/postgresql.conf
+      block: |
+        listen_addresses = '*'
+    become: true
 
-  - name: Reboot
-    reboot:
-      reboot_timeout: 3600
+  - name: Allow all authenticated users to connect to postgres (for keycloak inside docker)
+    postgresql_pg_hba:
+      dest: /etc/postgresql/12/main/pg_hba.conf
+      contype: host
+      users: all
+      source: 0.0.0.0/0
+      databases: all
+      method: md5
+      create: true
+    become: true
+
+  - name: Restart postgres
+    service:
+      name: postgresql
+      state: restarted
+    become: true
+
+  - name: Install Ansible postgres support for Python
+    pip:
+      name: psycopg2-binary
+    become: true
+
+  - name: Reset postgres database user
+    become: true
+    become_user: postgres
+    postgresql_user:
+      name: postgres
+      password: "{{ postgres_db_pass }}"
+
+  - name: Add database for keycloak
+    postgresql_db:
+      state: present
+      name: bitnami_keycloak
+      login_password: "{{ postgres_db_pass }}"
+    become: true
+    become_user: postgres
+
+  - name: Add database user for keycloak
+    postgresql_user:
+      state: present
+      name: "bn_keycloak"
+      login_password: "{{ postgres_db_pass }}"
+      password: "{{ keycloak_db_pass }}"
+    become: true
+    become_user: postgres
+
+  - name: Install keycloak docker image
+    docker_container:
+      image: bitnami/keycloak:latest
+      name: keycloak
+      state: started
+      auto_remove: true
+      ports:
+        - "8080:8080"
+      env:
+        KEYCLOAK_DATABASE_HOST: "{{ inventory_hostname }}"
+        KEYCLOAK_DATABASE_PASSWORD: "{{ keycloak_db_pass }}"
     become: true
 
 # install eregistrations
