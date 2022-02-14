@@ -58,6 +58,8 @@ $ ansible-playbook -i ./hosts drop.yml
 $ ANSIBLE_HOST_KEY_CHECKING=false ansible-playbook -i hosts store_known_hosts.yml
 ```
 
+NOTE: if this script fails for any reason, you likely need to clean references to old hosts from the `~/.ssh./known_hosts` file on the Ansible Control Node.
+
 2. This playbook creates non-root user, updates packages, configures SSH access, and generates LetsEncrypt certificates for all droplets. On `ansible.egovstack.net`, hit `<enter>` for the forst `SSH password:` prompt. Use `password` from `vars_with_secret.yml` for the `BECOME password[defaults to SSH password]:` prompt. :
 
 ```
