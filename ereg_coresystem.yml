@@ -111,7 +111,7 @@
       install_recommends: no
     become: true
 
-  - name: Add docker repository into sources list
+  - name: Add haproxy repository into sources list
     ansible.builtin.apt_repository:
       repo: ppa:vbernat/haproxy-2.4
       state: present
@@ -150,6 +150,25 @@
         - socat
     become: true
 
+# See https://docs.ansible.com/ansible/latest/collections/community/docker/docsite/scenario_guide.html#ansible-collections-community-docker-docsite-scenario-guide
+
+#   - name: Install Docker SDK for Python for Python 3.6
+#     pip:
+#       name: docker
+#     become: true
+
+# # See https://www.keycloak.org/getting-started/getting-started-docker
+
+#   - name: Install keycloak docker image
+#     docker_container:
+#       image: quay.io/keycloak/keycloak:16.1.1
+#       docker run -p 8080:8080 -e KEYCLOAK_USER=admin -e KEYCLOAK_PASSWORD=admin
+#       name: keycloak
+#       state: started
+#       auto_remove: true
+#       ports:
+#         - "8080:8080"
+
   - name: Reboot
     reboot:
       reboot_timeout: 3600
@@ -182,7 +201,25 @@
       requirements: /opt/eregistrations/scripts/requirements.txt
     become: true
 
-  - name: Creates directory
+  - name: Generate ereg passwords
+    ansible.builtin.shell: python3 /opt/eregistrations/scripts/deploy.py --auth-service=KEYCLOAK --step-pwd
+    args:
+      chdir: /opt/eregistrations/scripts
+    become: true
+
+  - name: Clean ereg auth
+    ansible.builtin.shell: python3 /opt/eregistrations/scripts/deploy.py --auth-service=KEYCLOAK --step-auth
+    args:
+      chdir: /opt/eregistrations/scripts
+    become: true
+
+  - name: Finish ereg install
+    ansible.builtin.shell: python3 /opt/eregistrations/scripts/deploy.py --auth-service=KEYCLOAK --step-all
+    args:
+      chdir: /opt/eregistrations/scripts
+    become: true
+
+  - name: Set permissions
     ansible.builtin.file:
       path: /opt/eregistrations
       state: directory
