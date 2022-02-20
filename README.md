@@ -29,6 +29,8 @@ er2.egovstack.net
 ...
 ```
 
+NOTE: hostnames must include a number, e.g. er1
+
 4. Edit `digitalocean.yml` to include the correct starting image and droplet type, e.g.:
 
 ```
