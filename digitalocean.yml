@@ -21,7 +21,7 @@
       ss: s-2vcpu-4gb
       ca: s-1vcpu-1gb
       mi: s-2vcpu-4gb
-      er: s-2vcpu-4gb
+      er: s-4vcpu-16gb
     domain_records: "{{ domain_records_resp.json.domain_records }}"
     domain_names: "{{ domain_records | map(attribute='name') | list }}"
     droplets_changed: "{{ droplet_result.results | default([]) | selectattr('changed') | map(attribute='data') | list }}"
