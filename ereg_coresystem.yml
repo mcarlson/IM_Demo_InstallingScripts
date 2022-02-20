@@ -1,14 +1,14 @@
 ---
 - name: Core system setup for eregistrations v4
 
-  hosts: er1.egovstack.net
+  hosts: er2.egovstack.net
 
   vars_files: vars_with_secret.yml
   vars:
-    user: xrd
+    words: "{{ inventory_hostname.split('.') }}"
+    domain_name: "{{ words[0]+'.ext.'+'.'.join(words[1:]) }}"
 
   tasks:
-
   - name: Purge unneeded packages
     apt:
       pkg:
@@ -123,6 +123,12 @@
       update_cache: yes
     become: true
 
+  - name: Make make certificate compatible with haproxy
+    ansible.builtin.shell: "cat /etc/letsencrypt/certs/fullchain_{{ domain_name }} /etc/letsencrypt/keys/{{ domain_name }}.key > /etc/letsencrypt/certs/haproxy.crt"
+    args:
+      chdir: /etc/letsencrypt/certs/
+    become: true
+
   - name: Install additional packages
     apt:
       pkg:
@@ -157,7 +163,7 @@
 
   - name: Install Ansible Docker support for Python
     pip:
-      name: docker
+      name: docker,docker-compose
     become: true
 
   - name: Allow docker to connect to postgres
@@ -196,36 +202,6 @@
     postgresql_user:
       name: postgres
       password: "{{ postgres_db_pass }}"
-
-  - name: Add database for keycloak
-    postgresql_db:
-      state: present
-      name: bitnami_keycloak
-      login_password: "{{ postgres_db_pass }}"
-    become: true
-    become_user: postgres
-
-  - name: Add database user for keycloak
-    postgresql_user:
-      state: present
-      name: "bn_keycloak"
-      login_password: "{{ postgres_db_pass }}"
-      password: "{{ keycloak_db_pass }}"
-    become: true
-    become_user: postgres
-
-  - name: Install keycloak docker image
-    docker_container:
-      image: bitnami/keycloak:latest
-      name: keycloak
-      state: started
-      auto_remove: true
-      ports:
-        - "8080:8080"
-      env:
-        KEYCLOAK_DATABASE_HOST: "{{ inventory_hostname }}"
-        KEYCLOAK_DATABASE_PASSWORD: "{{ keycloak_db_pass }}"
-    become: true
 
 # install eregistrations
 
@@ -266,6 +242,94 @@
       chdir: /opt/eregistrations/scripts
     become: true
 
+
+# Update /opt/eregistrations/compose/eregistrations/.env for all #changeme entries:
+
+  - name: Substitute FORMIO_EMAIL
+    lineinfile:
+      path: /opt/eregistrations/compose/eregistrations/.env
+      regexp: '^FORMIO_EMAIL= #changeme'
+      line: 'FORMIO_EMAIL={{ formio_email }}'
+    become: true
+  - name: Substitute GRAYLOG_ROOT_PASSWORD
+    lineinfile:
+      path: /opt/eregistrations/compose/eregistrations/.env
+      regexp: '^GRAYLOG_ROOT_PASSWORD=e65ec2b4e96ecae33c4c67da69cbd3cbf72c8635ac4fb3292b5980befc851802 #changeme'
+      line: 'GRAYLOG_ROOT_PASSWORD={{ graylog_root_password }}'
+    become: true
+  - name: Substitute MAIL_HOST
+    lineinfile:
+      path: /opt/eregistrations/compose/eregistrations/.env
+      regexp: '^MAIL_HOST=mail.unctad.org #changeme'
+      line: 'MAIL_HOST={{ smtp_host }}'
+    become: true
+  - name: Substitute MAIL_PORT
+    lineinfile:
+      path: /opt/eregistrations/compose/eregistrations/.env
+      regexp: '^MAIL_PORT=mail.unctad.org #changeme'
+      line: 'MAIL_PORT={{ smtp_port }}'
+    become: true
+  - name: Substitute MAIL_USERNAME
+    lineinfile:
+      path: /opt/eregistrations/compose/eregistrations/.env
+      regexp: '^MAIL_USERNAME=none #changeme'
+      line: 'MAIL_USERNAME={{ smtp_username }}'
+    become: true
+  - name: Substitute MAIL_PASSWORD
+    lineinfile:
+      path: /opt/eregistrations/compose/eregistrations/.env
+      regexp: '^MAIL_PASSWORD=none #changeme'
+      line: 'MAIL_PASSWORD={{ smtp_password }}'
+    become: true
+  - name: Substitute MAIL_REPLY_TO
+    lineinfile:
+      path: /opt/eregistrations/compose/eregistrations/.env
+      regexp: '^MAIL_REPLY_TO=no-reply@unctad.org #changeme'
+      line: 'MAIL_REPLY_TO={{ smtp_replyto }}'
+    become: true
+  - name: Substitute MAIL_FROM
+    lineinfile:
+      path: /opt/eregistrations/compose/eregistrations/.env
+      regexp: '^MAIL_FROM=no-reply@unctad.org #changeme'
+      line: 'MAIL_FROM={{ smtp_from }}'
+    become: true
+  - name: Substitute SYSTEM_CODE
+    lineinfile:
+      path: /opt/eregistrations/compose/eregistrations/.env
+      regexp: '^SYSTEM_CODE=CH #changeme'
+      line: 'SYSTEM_CODE={{ system_code }}'
+    become: true
+  - name: Substitute DEFAULT_LANGUAGE
+    lineinfile:
+      path: /opt/eregistrations/compose/eregistrations/.env
+      regexp: '^DEFAULT_LANGUAGE=en #changeme'
+      line: 'DEFAULT_LANGUAGE={{ default_language }}'
+    become: true
+  - name: Substitute YOUR_DOMAIN_NAME
+    lineinfile:
+      path: /opt/eregistrations/compose/eregistrations/.env
+      regexp: '^YOUR_DOMAIN_NAME=eregistrations.org #changeme'
+      line: 'YOUR_DOMAIN_NAME={{ domain_name }}'
+    become: true
+  - name: Substitute TIME_ZONE
+    lineinfile:
+      path: /opt/eregistrations/compose/eregistrations/.env
+      regexp: '^TIME_ZONE=Europe/Zurich #changeme'
+      line: 'TIME_ZONE={{ time_zone }}'
+    become: true
+  - name: Substitute DOCKER_PASSWORD
+    lineinfile:
+      path: /opt/eregistrations/compose/eregistrations/.env
+      regexp: '^DOCKER_PASSWORD= #askus'
+      line: 'DOCKER_PASSWORD={{ docker_password }}'
+    become: true
+  - name: Substitute PATH_TO_SSL_CERTIFICATE
+    lineinfile:
+      path: /opt/eregistrations/compose/eregistrations/.env
+      regexp: '^PATH_TO_SSL_CERTIFICATE=/etc/letsencrypt/live/YOUR_DOMAIN_NAME/haproxy.crt #changeme'
+      line: 'PATH_TO_SSL_CERTIFICATE=/etc/letsencrypt/certs/haproxy.crt'
+    become: true
+
   - name: Finish ereg install
     ansible.builtin.shell: python3 /opt/eregistrations/scripts/deploy.py --auth-service=KEYCLOAK --step-all
     args:
@@ -279,4 +343,9 @@
       owner: ereg
       group: ereg
       mode: '0755'
+    become: true
+
+  - name: Reboot
+    reboot:
+      reboot_timeout: 3600
     become: true
