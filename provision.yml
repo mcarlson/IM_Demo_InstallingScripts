@@ -69,3 +69,8 @@
     - include_tasks: letsencrypt-subdomain.yml
       with_items:
         - "{{ subdomains }}"
+
+    - name: Reboot
+      reboot:
+        reboot_timeout: 3600
+      become: true
