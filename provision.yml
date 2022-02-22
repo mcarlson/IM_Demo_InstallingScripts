@@ -65,3 +65,7 @@
     - include_tasks: letsencrypt.yml
       with_items:
         - "{{ domain_name }}"
+
+    - include_tasks: letsencrypt-subdomain.yml
+      with_items:
+        - "{{ subdomains }}"

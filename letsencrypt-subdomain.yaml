@@ -1,0 +1,3 @@
+- include_tasks: letsencrypt.yml
+  with_items:
+    - "{{ item+'.'+domain_name }}"
