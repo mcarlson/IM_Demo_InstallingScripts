@@ -59,10 +59,16 @@
         authorization: Bearer {{ digital_ocean_token }}
     register: domain_records_resp
 
+  - name: -v to print changed
+    debug:
+      var: domain_records
+      verbosity: 1
+
   - name: delete address
     vars:
        words: "{{ item.name.split('.') }}"
-    when: (words|length==2 and words[1]=='ext' and words[0]+'.'+dns_domain in groups['all']
+    when: (words|length==3 and words[2]=='ext' and words[1]+'.'+dns_domain in groups['all']
+           or (words|length>=2 and words[1]=='ext' and words[0]+'.'+dns_domain in groups['all'])
            or (words|length==1 and words[0]+'.'+dns_domain in groups['all']))
     uri:
       method: DELETE

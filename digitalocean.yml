@@ -140,3 +140,5 @@
           data:  "{{ private_record.data }}"
     loop: "{{ droplets_changed }}"
 
+  - include_tasks: addpublicsubdomains.yml
+    loop: "{{ droplets_changed }}"

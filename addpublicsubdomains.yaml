@@ -1,0 +1,18 @@
+- name: add public subdomains
+  when: public_record.name not in domain_names
+  uri:
+    method: POST
+    url: "{{ api_url }}"
+    headers:
+      authorization: Bearer {{ digital_ocean_token }}
+    body: '{{ api_body | to_json }}'
+    body_format: json
+    status_code: [200, 201]
+  vars:
+    api_body:
+        type: A
+        name: "{{ outside_item + '.' + public_record.name }}"
+        data:  "{{ public_record.data }}"
+  loop: "{{ subdomains }}"
+  loop_control:
+      loop_var: outside_item
