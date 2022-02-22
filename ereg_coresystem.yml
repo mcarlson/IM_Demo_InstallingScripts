@@ -1,7 +1,46 @@
 ---
+- name: Setup haproxy certificates
+
+  hosts: all
+
+  remote_user: root
+
+  vars_files: vars_with_secret.yml
+  vars:
+    words: "{{ inventory_hostname.split('.') }}"
+    domain_name: "{{ words[0]+'.ext.'+'.'.join(words[1:]) }}"
+
+  tasks:
+  - name: Store haproxy certs
+    set_fact:
+      haproxy_certs: "{{ [ '/etc/letsencrypt/certs/haproxy.crt' ] }}"
+
+  - name: Make certificate compatible with haproxy
+    ansible.builtin.shell: "cat /etc/letsencrypt/certs/fullchain_{{ domain_name }} /etc/letsencrypt/keys/{{ domain_name }}.key > /etc/letsencrypt/certs/haproxy.crt"
+    args:
+      chdir: /etc/letsencrypt/certs/
+    become: true
+
+  - name: Store haproxy certs for subdomains
+    set_fact:
+      haproxy_certs: "{{ haproxy_certs + [ '/etc/letsencrypt/certs/haproxy_'+item+'.crt' ] }}"
+    loop: "{{ subdomains }}"
+
+  - name: Make subdomain certificate compatible with haproxy
+    ansible.builtin.shell: "cat /etc/letsencrypt/certs/fullchain_{{ item+'.'+domain_name }} /etc/letsencrypt/keys/{{ domain_name }}.key > /etc/letsencrypt/certs/haproxy_{{ item }}.crt"
+    args:
+      chdir: /etc/letsencrypt/certs/
+    become: true
+    loop: "{{ subdomains }}"
+
+  - name: -v to print haproxy_certs
+    debug:
+      var: haproxy_certs
+      verbosity: 1
+
 - name: Core system setup for eregistrations v4
 
-  hosts: er2.egovstack.net
+  hosts: all
 
   vars_files: vars_with_secret.yml
   vars:
@@ -45,6 +84,20 @@
         - mongodb-org
     become: true
 
+  - name: In /etc/mongod.conf change 'bindIp 127.0.0.1' to 0.0.0.0
+    lineinfile:
+      path: /etc/mongod.conf
+      regexp: '^  bindIp: 127.0.0.1'
+      line: '  bindIp: 0.0.0.0'
+    become: true
+
+  - name: Start mongodb, also on reboot
+    ansible.builtin.service:
+      name: mongod
+      state: started
+      enabled: yes
+    become: true
+
 # See https://www.digitalocean.com/community/tutorials/how-to-install-and-configure-elasticsearch-on-ubuntu-20-04
 
   - name: Add elasticsearch apt signing key
@@ -59,12 +112,25 @@
       state: present
     become: true
 
-  - name: Install elasticsearch
+  - name: Install elasticsearch, required for graylog
     apt:
       pkg:
         - elasticsearch
     become: true
 
+  - name: In /etc/elasticsearch/elasticsearch.yml change network.host to 0.0.0.0
+    lineinfile:
+      path: /etc/elasticsearch/elasticsearch.yml
+      regexp: '^#network.host: 192.168.0.1'
+      line: '  #network.host: 0.0.0.0'
+    become: true
+
+  - name: Start elasticsearch, also on reboot
+    ansible.builtin.service:
+      name: elasticsearch
+      state: started
+      enabled: yes
+    become: true
 
 # See https://docs.docker.com/engine/install/ubuntu/
 
@@ -123,11 +189,6 @@
       update_cache: yes
     become: true
 
-  - name: Make make certificate compatible with haproxy
-    ansible.builtin.shell: "cat /etc/letsencrypt/certs/fullchain_{{ domain_name }} /etc/letsencrypt/keys/{{ domain_name }}.key > /etc/letsencrypt/certs/haproxy.crt"
-    args:
-      chdir: /etc/letsencrypt/certs/
-    become: true
 
   - name: Install additional packages
     apt:
@@ -157,7 +218,19 @@
         - acl # for postgres/ansible
     become: true
 
-# Install keycloak, see https://hub.docker.com/r/bitnami/keycloak/
+  - name: In /etc/redis/redis.conf change 'bind 127.0.0.1 ::1' -> 'bind 0.0.0.0'
+    lineinfile:
+      path: /etc/redis/redis.conf
+      regexp: '^#network.host: 192.168.0.1'
+      line: '  #network.host: 0.0.0.0'
+    become: true
+
+  - name: Start redis, also on reboot
+    ansible.builtin.service:
+      name: redis
+      state: started
+      enabled: yes
+    become: true
 
 # Required for Ansible docker support, see https://docs.ansible.com/ansible/latest/collections/community/docker/docsite/scenario_guide.html#ansible-collections-community-docker-docsite-scenario-guide
 
@@ -327,7 +400,7 @@
     lineinfile:
       path: /opt/eregistrations/compose/eregistrations/.env
       regexp: '^PATH_TO_SSL_CERTIFICATE=/etc/letsencrypt/live/YOUR_DOMAIN_NAME/haproxy.crt #changeme'
-      line: 'PATH_TO_SSL_CERTIFICATE=/etc/letsencrypt/certs/haproxy.crt'
+      line: "PATH_TO_SSL_CERTIFICATE={{ ' '.join(haproxy_certs) }}"
     become: true
 
   - name: Finish ereg install
@@ -345,7 +418,10 @@
       mode: '0755'
     become: true
 
-  - name: Reboot
-    reboot:
-      reboot_timeout: 3600
-    become: true
+# TODO: manually comment out the KEYCLOAK_ADMIN_USERNAME and KEYCLOAK_ADMIN_PASSWORD after first run of docker compose...
+
+# NOTE: can only reboot after keycloak comes up the first time...
+  # - name: Reboot
+  #   reboot:
+  #     reboot_timeout: 3600
+  #   become: true
