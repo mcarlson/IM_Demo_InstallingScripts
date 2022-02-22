@@ -62,13 +62,15 @@ $ ANSIBLE_HOST_KEY_CHECKING=false ansible-playbook -i hosts store_known_hosts.ym
 
 NOTE: if this script fails for any reason, you likely need to clean references to old hosts from the `~/.ssh./known_hosts` file on the Ansible Control Node.
 
+If you see an error like `dig +short er3.egovstack.net` you likely need to wait a minute for the DNS update from `digitalocean.yml` to propagate.
+
 2. This playbook creates non-root user, updates packages, configures SSH access, and generates LetsEncrypt certificates for all droplets. On `ansible.egovstack.net`, hit `<enter>` for the forst `SSH password:` prompt. Use `password` from `vars_with_secret.yml` for the `BECOME password[defaults to SSH password]:` prompt. :
 
 ```
 $ ansible-playbook -i hosts -k provision.yml --ask-become-pass
 ```
 
-3. Reboot all droplets. On `ansible.egovstack.net`, use `password` from `vars_with_secret.yml` for the `BECOME password:` prompt:
+3. OPTIONAL: Reboot all droplets. On `ansible.egovstack.net`, use `password` from `vars_with_secret.yml` for the `BECOME password:` prompt:
 
 ```
 $ ansible --ask-become-pass -i hosts -b -m reboot all
