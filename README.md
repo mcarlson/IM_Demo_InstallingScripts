@@ -52,6 +52,8 @@ $ ansible-playbook -i ./hosts digitalocean.yml
 $ ansible-playbook -i ./hosts drop.yml
 ```
 
+Note that you may need to run this multiple times to remove all subdomains...
+
 ## Set up SSL certificates and SSH access to droplets
 
 1. Add known hosts to all droplets:
@@ -82,7 +84,12 @@ See [Installing X-Road on DigitalOcean](https://docs.google.com/document/d/17B-L
 
 ## Set up ERegistration
 
+1. Set up eregistration:
 
 ```
 $ ansible-playbook -i hosts -k ereg_coresystem.yml --ask-become-pass
 ```
+
+2. Wait several minutes for everything to start up. You can ssh into the host to debug, e.g. from ansible.egovstack.net run `host@ansible:~/wkd/ereg$ ssh root@er3.egovstack.net`. It may be helpful to reboot the host a few times and run `top` or `docker ps` to see which processes are healthy.
+
+3. Ensure keycloak has started up completely, then comment out `KEYCLOAK_USER=$KEYCLOAK_ADMIN_USER` and `KEYCLOAK_PASSWORD=$KEYCLOAK_ADMIN_USER_PASSWORD` in the docker compose, e.g. `# vim /opt/eregistrations/compose/eregistrations/docker-compose.yml` followed by `docker-compose up -d keycloak`
