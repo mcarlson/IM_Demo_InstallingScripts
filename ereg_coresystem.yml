@@ -125,6 +125,20 @@
       line: 'network.host: 0.0.0.0'
     become: true
 
+  - name: In /etc/elasticsearch/elasticsearch.yml change cluster.initial_master_nodes to node-1
+    lineinfile:
+      path: /etc/elasticsearch/elasticsearch.yml
+      regexp: '^#cluster.initial_master_nodes: \[\"node-1\", \"node-2\"\]'
+      line: 'cluster.initial_master_nodes: ["node-1"]'
+    become: true
+
+  - name: In /etc/elasticsearch/elasticsearch.yml change node.name to node-1
+    lineinfile:
+      path: /etc/elasticsearch/elasticsearch.yml
+      regexp: '^#node.name: node-1'
+      line: 'node.name: node-1'
+    become: true
+
   - name: Start elasticsearch, also on reboot
     ansible.builtin.service:
       name: elasticsearch
