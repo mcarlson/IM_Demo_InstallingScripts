@@ -59,7 +59,7 @@
   vars_files: vars_with_secret.yml
   vars:
     words: "{{ inventory_hostname.split('.') }}"
-    domain_name: "{{ '*.'+words[0]+'.ext.'+'.'.join(words[1:]) }}"
+    domain_name: "{{ words[0]+'.ext.'+'.'.join(words[1:]) }}"
 
   tasks:
     - include_tasks: letsencrypt.yml
