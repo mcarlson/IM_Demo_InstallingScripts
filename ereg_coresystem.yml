@@ -1,42 +1,6 @@
 ---
-- name: Setup haproxy certificates
-
-  hosts: all
-
-  remote_user: root
-
-  vars_files: vars_with_secret.yml
-  vars:
-    words: "{{ inventory_hostname.split('.') }}"
-    domain_name: "{{ words[0]+'.ext.'+'.'.join(words[1:]) }}"
-
-  tasks:
-  - name: Store haproxy certs
-    set_fact:
-      haproxy_certs: "{{ [ '/etc/letsencrypt/certs/haproxy.crt' ] }}"
-
-  - name: Make certificate compatible with haproxy
-    ansible.builtin.shell: "cat /etc/letsencrypt/certs/fullchain_{{ domain_name }} /etc/letsencrypt/keys/{{ domain_name }}.key > /etc/letsencrypt/certs/haproxy.crt"
-    args:
-      chdir: /etc/letsencrypt/certs/
-    become: true
-
-  # - name: Store haproxy certs for subdomains
-  #   set_fact:
-  #     haproxy_certs: "{{ haproxy_certs + [ '/etc/letsencrypt/certs/haproxy_'+item+'.crt' ] }}"
-  #   loop: "{{ subdomains }}"
-
-  - name: Make subdomain certificate compatible with haproxy
-    ansible.builtin.shell: "cat /etc/letsencrypt/certs/fullchain_{{ item+'.'+domain_name }} /etc/letsencrypt/keys/{{ domain_name }}.key > /etc/letsencrypt/certs/haproxy_{{ item }}.crt"
-    args:
-      chdir: /etc/letsencrypt/certs/
-    become: true
-    loop: "{{ subdomains }}"
-
-  - name: -v to print haproxy_certs
-    debug:
-      var: haproxy_certs
-      verbosity: 1
+- name: Include a play after another play
+  import_playbook: haproxy-certs.yml
 
 - name: Core system setup for eregistrations v4
 
