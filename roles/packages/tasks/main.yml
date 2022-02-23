@@ -4,6 +4,7 @@
   apt:
     update_cache: yes
     upgrade: dist
+    install_recommends: no
   when: ansible_os_family == "Debian"
 
 - name: Upgrading all packages (CentOS)
