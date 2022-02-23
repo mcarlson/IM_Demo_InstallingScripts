@@ -386,7 +386,7 @@
     lineinfile:
       path: /opt/eregistrations/compose/eregistrations/.env
       regexp: '^PATH_TO_SSL_CERTIFICATE=/etc/letsencrypt/live/YOUR_DOMAIN_NAME/haproxy.crt #changeme'
-      line: "PATH_TO_SSL_CERTIFICATE={{ ' cer '.join(haproxy_certs) }}"
+      line: "PATH_TO_SSL_CERTIFICATE={{ ' crt '.join(haproxy_certs) }}"
     become: true
 
   - name: Finish ereg install
