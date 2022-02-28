@@ -53,7 +53,7 @@
 
   - name: fetch all records of domain
     uri:
-      url: "{{ api_url+'?type=A' }}"
+      url: "{{ api_url+'?type=A&per_page=200' }}"
       headers:
         accept: application/json
         authorization: Bearer {{ digital_ocean_token }}
