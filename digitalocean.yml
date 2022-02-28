@@ -23,6 +23,13 @@
       ca: s-1vcpu-1gb
       mi: s-2vcpu-4gb
       er: m-2vcpu-16gb
+    droplet_tags:
+      cs: ['ssh']
+      cp: ['ssh']
+      ss: ['ssh']
+      ca: ['ssh']
+      mi: ['ssh']
+      er: ['ssh', 'ereg']
     domain_records: "{{ domain_records_resp.json.domain_records }}"
     domain_names: "{{ domain_records | map(attribute='name') | list }}"
     droplets_changed: "{{ droplet_result.results | default([]) | selectattr('changed') | map(attribute='data') | list }}"
@@ -51,6 +58,7 @@
       size: "{{ droplet_size[item[0:2]] }}"
       region: "{{ droplet_region }}"
       image: "{{ droplet_image[item[0:2]] }}"
+      tags: "{{ droplet_tags[item[0:2]] }}"
       # vpc_uuid: "{{ droplet_vpc }}"
       wait_timeout: 600
       unique_name: yes
