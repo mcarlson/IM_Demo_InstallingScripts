@@ -11,6 +11,8 @@ See the [Functional demo sandbox tasks](https://docs.google.com/document/d/19TgK
 1. Ensure you have an Ansible Control Node, e.g. [ansible.egovstack.net](ansible.egovstack.net) on Digital Ocean.
 2. Check out a copy of this repo on the control node. We suggest creating unique forks/branches to track changes and regularly committing/pushing them to track configuration changes over time.
 3. Copy `vars_with_secret_example.yml` to `vars_with_secret.yml`. It contains shared secrets used across scripts.
+4. You may wish to sign up for an ESP that provides SMTP access, e.g. https://app.eu.mailgun.com/. Please set your ESP's SMTP account properties in `vars_with_secret.yml`.
+
 
 ## Create Digital Ocean droplets
 
@@ -93,3 +95,5 @@ $ ansible-playbook -i hosts -k ereg_coresystem.yml --ask-become-pass
 2. Wait several minutes for everything to start up. You can ssh into the host to debug, e.g. from ansible.egovstack.net run `host@ansible:~/wkd/ereg$ ssh root@er3.egovstack.net`. It may be helpful to reboot the host a few times and run `top` or `docker ps` to see which processes are healthy.
 
 3. Ensure keycloak has started up completely, then comment out `KEYCLOAK_USER=$KEYCLOAK_ADMIN_USER` and `KEYCLOAK_PASSWORD=$KEYCLOAK_ADMIN_USER_PASSWORD` in the docker compose, e.g. `# vim /opt/eregistrations/compose/eregistrations/docker-compose.yml` followed by `docker-compose up -d keycloak`
+
+4. Ensure the SMTP settings are correct in keycloak, e.g. https://login.er3.ext.egovstack.net/auth/admin/master/console/#/realms/CH/smtp-settings
