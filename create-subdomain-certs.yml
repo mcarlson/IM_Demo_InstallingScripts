@@ -1,0 +1,27 @@
+---
+- name: Get certificates
+
+  hosts: all
+
+  remote_user: root
+
+  vars_files: vars_with_secret.yml
+  vars:
+    words: "{{ inventory_hostname.split('.') }}"
+    domain_name: "{{ words[0]+'.ext.'+'.'.join(words[1:]) }}"
+    internal_domain_name: "{{ words[0]+'.'+'.'.join(words[1:]) }}"
+
+  tasks:
+
+    - include_tasks: letsencrypt.yml
+      with_items:
+        - "{{ internal_domain_name }}"
+
+    - include_tasks: letsencrypt-subdomain.yml
+      with_items:
+        - "{{ subdomains }}"
+
+    - name: Reboot
+      reboot:
+        reboot_timeout: 3600
+      become: true
