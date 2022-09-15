@@ -36,3 +36,8 @@
     debug:
       msg: "{{' crt '.join(haproxy_certs)}}"
       verbosity: 1
+
+  - name: Restart haproxy
+    service:
+      name: haproxy
+      state: restarted
